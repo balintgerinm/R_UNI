@@ -1,3 +1,6 @@
-df <- read.delim('./bead41/bead41.1.csv')
 
-print(df)
+
+
+df2 <- read.delim('./bead41/bead41.2.csv')
+
+

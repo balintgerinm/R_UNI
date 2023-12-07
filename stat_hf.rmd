@@ -1,0 +1,202 @@
+# 1. Feladat - Lineáris regresszió
+
+
+
+```{r}
+data1 <- read.csv("./bead41/bead41.1.csv")
+```
+
+## 1.1
+
+```{r}
+
+linreg <- lm(
+  IMDb.pontszám ~ Bevétel + Hossz,
+  data = data1,
+)
+summary <- summary(linreg)
+summary
+
+```
+
+Az egyőtthatók, és az intercept konstans:
+```{r}
+linreg$coefficients
+```
+
+5%-os szignifikanciaszinten egyik változó sem szignifikáns,
+mivel `Pr(>|t|)` értékeik sokkal nagyobbak, mint 0.05.
+Az összbevételnek korrelálnia kell a pontszámmal,
+de önmagában nem határozza meg a célváltozót.
+
+A konstans tag meghatározó.
+
+```{r}
+summary$coefficients
+```
+
+## 1.2
+
+```{r}
+summary$r.squared
+```
+
+Mivel az érték pozitív, ezért sokat javított a sima átlaghoz képest (30%), de nem túl jó.
+
+## 1.3
+
+```{r}
+pf(
+  summary$fstatistic[["value"]],
+  summary$fstatistic[["numdf"]],
+  summary$fstatistic[["dendf"]],
+  lower.tail = FALSE,
+)
+```
+
+Lényegében F-eloszláshoz hasonlítunk.
+A kapott érték nagyon kicsi, ami azt jelenti, hogy a modell megbízható.
+
+## 1.4
+
+Intervallumbecslés 0.95 konfidenciaszinten a paraméterekre:
+
+```{r}
+confint(linreg, level = 0.95)
+```
+
+A táblázatban láthatóak az intervallumok végei.
+
+## 1.5
+
+Ebben a feladatban más a célváltozó, ezért új model kell:
+
+```{r}
+linreg2 <- lm(
+  Bevétel ~ Hossz + IMDb.pontszám,
+  data = data1
+)
+prediction <- predict.lm(
+  linreg2,
+  data.frame(Hossz = 130, IMDb.pontszám = 8.5),
+  interval = "confidence",
+  level = 0.95,
+)
+```
+
+Ez lett az előrejelzésünk:
+
+```{r}
+prediction[1]
+```
+
+# 2. Feladat - Illeszkedésvizsgálat
+
+```{r}
+data2 <- read.csv("./bead41/bead41.2.csv")
+```
+
+Nem feltételezhetem az adatok normális eloszlását,
+ezért a tanult shapiro tesztet elvégzem az adatokon.
+Az oszlopok külön, nem összefüggő adatok.
+
+```{r}
+shapiro.test(data2$Akció)
+shapiro.test(data2$Vígjáték)
+shapiro.test(data2$Romantikus)
+shapiro.test(data2$Dráma)
+```
+0.05 szignifikanciaszinten a Vígjáték és Romantikus oszlopok
+nem tekinthetők normális eloszlású adatoknak, a `p-value` értékek alapján, ezért
+a továbbiakban nemparaméteres próbákat kell alkalmazni.
+
+4 adatsorunk van, ezért Kruskal-Wallis próbával ellenőrzöm a homogenitásukat.
+
+Az adatok a jelenlegi formájukban ehhez használhatatlanok,
+semmi értelme a táblázatos formának, hiszen az egy sorban lévő adatok
+nem összefügőek.
+```{r}
+akcio      <- data.frame(címke = "Akció",      pontszám = data2$Akció)
+vigjatek   <- data.frame(címke = "Vígjáték",   pontszám = data2$Vígjáték)
+romantikus <- data.frame(címke = "Romantikus", pontszám = data2$Romantikus)
+drama      <- data.frame(címke = "Dráma",      pontszám = data2$Dráma)
+
+atstrukturalt_data2 <- rbind(akcio, vigjatek, romantikus, drama)
+```
+
+Ezzel kaptam egy dataframe-et, amiben egymás után található 4*40 adatsor,
+első oszlopban a címke, másodikban adat. Most már elvégezhető a Kruskal-Walis.
+
+```{r}
+kruskal.test(pontszám ~ címke, data = atstrukturalt_data2)
+```
+
+A nullhipotézis szerint homogének az adatok. A kapott érték: `p-value = 0.02` alapján
+a megadott `ε = 0,05` szignifikanciaszinten elfogadható, mivel a `p-value < (1-ε)`.
+Ezért elfogadható, hogy az adatsorok homogánek ezen a szignifikanciaszinten.
+
+# 3. Feladat - Idősorelemzés
+
+```{r}
+data3 <- read.csv("./bead41/bead41.3.csv")
+data3
+```
+
+## 3.1
+
+### Idősordiagram plot-tal
+
+```{r}
+plot(
+  seq(1, 36), data3$IMDb.pontszám,
+  xlab = "Rész globális sorszáma", ylab = "IMDb pontszám",
+  type = "b",
+)
+```
+
+### Tapasztalati autokorrelációs függvény
+
+```{r}
+acf(data3$IMDb.pontszám)
+```
+
+A 0 jelű komponens mindig 1, mivel saját magával vett korreláció.
+A 2. indexű komponens (k=2) számottevő.
+
+### Parciális autokorrelációs függvény
+
+```{r}
+pacf(data3$IMDb.pontszám)
+```
+
+A 2. indexű elem számít.
+
+## 3.2
+
+```{r}
+idosor <- ts(data3$IMDb.pontszám, frequency = 6)
+plot.ts(idosor)
+components <- decompose(idosor, type = "multiplicative")
+plot(components)
+```
+
+Illeszkedést számolok
+
+## 3.3
+
+```{r}
+library("forecast")
+```
+
+```{r}
+model1 <- HoltWinters(idosor, beta = FALSE, gamma = TRUE)
+
+model1_f <- forecast(model1, h = 6)
+
+plot(model1_f)
+
+model2 <- arima(idosor, order = c(0, 1, 6))
+model2_f <- forecast(model2, h = 6)
+
+plot(model2_f)
+```
